@@ -1,0 +1,38 @@
+pipeline {
+    agent none
+    stages {
+        stage('Checkout Code') {
+            parallel {
+                
+                stage('Test On ppc64le') {
+                    agent {
+                        label "whopping-dragonfly-jenkins1"
+                    }
+                    steps {
+                        script{
+                            checkout([$class: 'GitSCM', branches: [[name: '*/master']], doGenerateSubmoduleConfigurations: false, extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'src'], [$class: 'CleanBeforeCheckout']], submoduleCfg: [], userRemoteConfigs: [[url: 'https://github.com/khahmed/cron-test.git']]])
+                            appName = "default/cron-test"
+                            registryHost = "mycluster.icp:8500/"
+                            imageName = "${registryHost}${appName}:${env.BUILD_ID}-ppc64le"
+                            env.BUILDIMG=imageName
+                            docker.withRegistry('https://mycluster.icp:8500/', 'docker'){
+                                def pcImg = docker.build("mycluster.icp:8500/default/cron-test:${env.BUILD_ID}", "-f src/Dockerfile src/")
+                                sh "cp /root/.dockercfg /home/jenkins/.dockercfg"
+                                pcImg.push()
+                                input 'Do you want to proceed with Deployment?'
+                                pcImg.withRun{springboot ->
+                                git 'https://github.com/khahmed/cron-test.git'
+                                sh "ls"
+                                }
+                            }
+                           
+                        }
+                    }
+                }
+            }
+
+        }
+    }
+                        
+
+}
